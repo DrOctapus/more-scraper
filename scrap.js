@@ -2,7 +2,7 @@ const fs = require('fs')
 
 // --- CONFIGURATION ---
 const HOURS = 6
-const CACHE_MAX_AGE = 1000 *     60 * 60 * HOURS // ms
+const CACHE_MAX_AGE = 1000 * 60 * 60 * HOURS // ms
 
 const JSON_DIR = './json/'
 const IN_DIR = './links.txt'
@@ -26,10 +26,10 @@ const HTML_TEMPLATE_START = `<!DOCTYPE html>
         h1 { text-align: center; color: #ffffff; letter-spacing: 1px; }
         .timestamp { text-align: center; font-size: 0.9em; color: #aaaaaa; margin-bottom: 20px; }
         
-        table { width: 100%; border-collapse: separate; border-spacing: 0; background: #1e1e1e; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-radius: 8px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: #1e1e1e; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-radius: 8px; margin 10px; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333; }
         
-        th { background-color: #00796b; color: white; cursor: pointer; 
+        th { background-color: #00796b; color: white;
         position: sticky; 
         top: 0; 
         z-index: 100;
@@ -46,19 +46,60 @@ const HTML_TEMPLATE_START = `<!DOCTYPE html>
         tr:nth-child(even) { background-color: #252525; }
         
         /* Specific Column Styles */
-        .col-name { font-weight: bold; color: #80cbc4; font-size: 1.05em; }
-        .col-link a { text-decoration: none; color: white; background-color: #1976d2; padding: 6px 12px; border-radius: 4px; font-size: 0.85em; display: inline-block; transition: background 0.2s; }
-        .col-link a:hover { background-color: #1565c0; }
+        .col-name { font-size: 1.5em; }
+        .col-name a { font-weight: bold; color: #80cbc4; text-decoration: none; background-color: #121212; padding: 6px 12px; border-radius: 4px; font-size: 0.85em; display: inline-block; transition: background 0.2s; }
+        .col-name a:hover { background-color: #222222; }
         
         /* Availability Bar */
         .availability-bar-bg { width: 100px; height: 6px; background-color: #444; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px; }
         .availability-bar-fill { height: 100%; background-color: #2cb31d; box-shadow: 0 0 5px rgba(4, 218, 26, 0.5); }
         .availability-text { font-size: 0.85em; color: #bbb; font-weight: bold; }
         
-        /* Prices */
-        .price-list { font-size: 0.85em; margin: 0; padding-left: 0; list-style: none; color: #ddd; }
-        .price-list li { margin-bottom: 3px; }
-        .price-list strong { color: #81c784; }
+        /* Prices - Carousel Style */
+        .price-container { min-width: 180px; position: relative; }
+        
+        .price-nav { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background-color: #252525; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            margin-bottom: 6px;
+            border: 1px solid #333;
+        }
+        
+        .nav-btn { 
+            cursor: pointer; 
+            color: #80cbc4; 
+            font-weight: bold; 
+            user-select: none;
+            padding: 0 6px;
+            font-size: 1.1em;
+            min-width: 30px;
+        }
+        .nav-btn:hover { color: #fff; background-color: #333; border-radius: 3px;}
+        .nav-title { font-size: 0.7em; font-weight: 600; text-transform: uppercase; color: #ddd; }
+        
+        /* The individual lists */
+        .price-category { animation: fadeIn 0.3s; }
+        .price-category[style*="display: none"] { display: none !important; }
+        
+        .price-row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 0.85em; 
+            margin-bottom: 3px; 
+            border-bottom: 1px dashed #333; 
+            padding-bottom: 2px; 
+        }
+        .price-label { color: #bbb; }
+        .price-val { color: #81c784; font-weight: bold; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
 
         .error-container { margin-top: 40px; border: 1px solid #ef5350; background-color: #221214ff; border-radius: 8px; padding: 20px; }
         .error-title { color: #ff5252; font-size: 1.2em; margin-bottom: 15px; border-bottom: 1px solid #ef5350; padding-bottom: 5px; }
@@ -83,7 +124,6 @@ const HTML_TEMPLATE_START = `<!DOCTYPE html>
                 <th class="sort" onclick="sortTable(4)">Seat Availability</th>
                 <th class="sort" onclick="sortTable(5)">Sold Out</th>
                 <th ">Prices</th>
-                <th ">Link</th>
             </tr>
         </thead>
         <tbody>
@@ -96,6 +136,30 @@ const HTML_TEMPLATE_END = `
     {{ERRORS}}
 
     <script>
+        function changePrice(cellId, direction) {
+            var container = document.getElementById(cellId);
+            var currentIndex = parseInt(container.getAttribute('data-current'));
+            var total = parseInt(container.getAttribute('data-total'));
+            
+            // Calculate new index (looping)
+            var newIndex = currentIndex + direction;
+            if (newIndex >= total) newIndex = 0;
+            if (newIndex < 0) newIndex = total - 1;
+            
+            // Hide current
+            document.getElementById(cellId + '-' + currentIndex).style.display = 'none';
+            
+            // Show new
+            var newList = document.getElementById(cellId + '-' + newIndex);
+            newList.style.display = 'block';
+            
+            // Update Title
+            var titleEl = document.getElementById('title-' + cellId);
+            if(titleEl) titleEl.innerText = newList.getAttribute('data-name');
+            
+            // Update State
+            container.setAttribute('data-current', newIndex);
+        }
         function sortTable(n) {
             var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
             table = document.getElementById("myTable");
@@ -199,15 +263,57 @@ function processPageData(page) {
         data.availability = Math.round(totalAvailablePrcnt / totalAvailable)
     }
 
-    data.pricesHTML = []
+    // data.pricesHTML = []
 
     const pricelists = page.json?.pricelists || []
-    for (let list of pricelists) {
-        const prices = []
-        for (let price of list.discounts) {
-            prices.push(`<div>${price["discount-name"]}: <strong>${price["price"]}</strong></div>`)
+    // for (let list of pricelists) {
+    //     const prices = []
+    //     for (let price of list.discounts) {
+    //         prices.push(`<div>${price["discount-name"]}: <strong>${price["price"]}</strong></div>`)
+    //     }
+    //     data.pricesHTML.push(prices)
+    // }
+
+    // Generate a unique ID for this cell to help the targeting
+    const cellId = 'prices-' + Math.random().toString(36).slice(2, 9)
+    let allListsHtml = ""
+
+    if (pricelists.length == 0) {
+        data.pricesWidget = `<div style="color:#666; font-size:0.8em;">N/A</div>`
+    } else {
+        let navHtml = ""
+        if (pricelists.length > 1) {
+            navHtml = `
+            <div class="price-nav">
+                <div class="nav-btn" onclick="changePrice('${cellId}', -1)">&#8249;</div>
+                <div class="nav-title" id="title-${cellId}">Category 1</div>
+                <div class="nav-btn" onclick="changePrice('${cellId}', 1)">&#8250;</div>
+            </div>`
         }
-        data.pricesHTML.push(prices)
+
+        // Generate the lists
+        pricelists.forEach((list, index) => {
+            const isVisible = index == 0 ? '' : 'display: none;'
+            const listName = list.name || `Category ${index + 1}` // Use API name if exists, else generic
+
+            let listHtml = `<div id="${cellId}-${index}" class="price-category" data-name="${listName}" style="${isVisible}">`
+
+            list.discounts.forEach(price => {
+                listHtml += `
+                    <div class="price-row">
+                        <span class="price-label">${price["discount-name"]}</span>
+                        <span class="price-val">${price["price"]}€</span>
+                    </div>`
+            })
+            listHtml += `</div>`
+            allListsHtml += listHtml
+        })
+
+        data.pricesWidget = `
+            <div class="price-container" id="${cellId}" data-current="0" data-total="${pricelists.length}">
+                ${navHtml}
+                ${allListsHtml}
+            </div>`
     }
 
     page.data = data
@@ -218,7 +324,7 @@ function generateHtmlRow(page) {
     const d = page.data
     return `
     <tr>
-        <td class='col-name'>${page.name || 'Unknown'}</td>
+        <td class='col-name'><a href='${page.url}' target='_blank'>${page.name || 'Unknown'}</a></td>
         <td data-sort='${d.min_date}'>${d.min_date}</td>
         <td data-sort='${d.max_date}'>${d.max_date}</td>
         <td data-sort='${d.total_available}'>${d.total_available}</td>
@@ -229,8 +335,7 @@ function generateHtmlRow(page) {
         <span class='availability-text'>${d.availability}%</span>
     </div></td>
         <td data-sort='${d.total_sold_out}'>${d.total_sold_out}/${d.total_events}</td>
-        <td>${d.pricesHTML[0]}</td>
-        <td class='col-link'><a href='${page.url}' target='_blank'>LINK</a></td>
+        <td>${d.pricesWidget}</td>
     </tr>`
 }
 
