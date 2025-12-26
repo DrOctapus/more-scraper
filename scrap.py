@@ -164,7 +164,7 @@ for page in PAGES:
         data["prices"] += f"{price["discount-name"]}: {price["price"]}\n"
 
     if len(page["json"]["pricelists"]) > 1:
-        data["prices"] += "WARNING, Pricing depends on day. Above prices are simple one set of prices\n"
+        data["prices"] += "WARNING, Pricing depends on day. Above prices are just one set of prices\n"
 
     page["data"] = data
 
@@ -173,3 +173,4 @@ with open(os.path.join(BASE_DIR, "output.txt"), "w", encoding="utf-8") as file5:
         file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["availability_prcnt"])]))
     else:
         file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["max_date"])]))
+
