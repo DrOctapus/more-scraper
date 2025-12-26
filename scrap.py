@@ -6,11 +6,123 @@ import json
 import re
 import sys
 
-# Directory of the current script
-if getattr(sys, "frozen", False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# --- HTML TEMPLATE ---
+# This contains the CSS and JS for the single-file output
+HTML_TEMPLATE_START = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theater Scraper (Dark Mode)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #ffffff; letter-spacing: 1px; }
+        .timestamp { text-align: center; font-size: 0.9em; color: #aaaaaa; margin-bottom: 20px; }
+        
+        table { width: 100%; border-collapse: collapse; background: #1e1e1e; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333; }
+        
+        /* Sticky Header */
+        th { background-color: #00796b; color: white; position: sticky; top: 0; z-index: 10; user-select: none; font-weight: 600; text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px; }
+        th.sort { cursor: pointer; }
+        th.sort:hover { background-color: #004d40; }
+        th.sort::after { content: ' \\21F5'; opacity: 0.5; font-size: 0.8em; }
+        
+        /* Row Styling */
+        tr:nth-child(even) { background-color: #252525; }
+        
+        /* Specific Column Styles */
+        .col-name { font-weight: bold; color: #80cbc4; font-size: 1.05em; }
+        .col-link a { text-decoration: none; color: white; background-color: #1976d2; padding: 6px 12px; border-radius: 4px; font-size: 0.85em; display: inline-block; transition: background 0.2s; }
+        .col-link a:hover { background-color: #1565c0; }
+        
+        /* Hotness Bar */
+        .hotness-bar-bg { width: 100px; height: 6px; background-color: #444; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px; }
+        .hotness-bar-fill { height: 100%; background-color: #2cb31d; box-shadow: 0 0 5px rgba(255, 82, 82, 0.5); }
+        .hotness-text { font-size: 0.85em; color: #bbb; font-weight: bold; }
+        
+        /* Prices */
+        .price-list { font-size: 0.85em; margin: 0; padding-left: 0; list-style: none; color: #ddd; }
+        .price-list li { margin-bottom: 3px; }
+        .price-list strong { color: #81c784; }
+        .warning { color: #ffab91; font-weight: bold; font-size: 0.8em; display: block; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Theater List</h1>
+    <div class="timestamp">Generated on: {generated_time}</div>
+    
+    <table id="myTable">
+        <thead>
+            <tr>
+                <th class="sort" onclick="sortTable(0)">Play Name</th>
+                <th class="sort" onclick="sortTable(1)">Start Date</th>
+                <th class="sort" onclick="sortTable(2)">End Date</th>
+                <th class="sort" onclick="sortTable(3)">Total Days</th>
+                <th class="sort" onclick="sortTable(4)">Seat Availability</th>
+                <th class="sort" onclick="sortTable(5)">Sold Out</th>
+                <th ">Prices</th>
+                <th ">Link</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+
+HTML_TEMPLATE_END = """
+        </tbody>
+    </table>
+
+    <script>
+        function sortTable(n) {
+            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+            table = document.getElementById("myTable");
+            switching = true;
+            dir = "asc"; 
+            
+            while (switching) {
+                switching = false;
+                rows = table.rows;
+                
+                for (i = 1; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[n];
+                    y = rows[i + 1].getElementsByTagName("TD")[n];
+                    
+                    // Check if we should sort by custom data attribute (numbers/dates) or text
+                    var xVal = x.getAttribute("data-sort") || x.innerHTML.toLowerCase();
+                    var yVal = y.getAttribute("data-sort") || y.innerHTML.toLowerCase();
+                    
+                    // Convert to number if possible for correct numeric sorting
+                    if (!isNaN(parseFloat(xVal)) && isFinite(xVal)) {
+                        xVal = parseFloat(xVal);
+                        yVal = parseFloat(yVal);
+                    }
+
+                    if (dir == "asc") {
+                        if (xVal > yVal) { shouldSwitch = true; break; }
+                    } else if (dir == "desc") {
+                        if (xVal < yVal) { shouldSwitch = true; break; }
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                    switchcount ++; 
+                } else {
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # hours in secs
 HOURS = 6
@@ -62,23 +174,83 @@ def is_cache_fresh(filepath):
     return False
 
 
-def event_to_string(page):
-    output = ""
-    output += "-" * 50 + "\n" + page["name"] + "\n"
-    output += page["url"] + "\n"
+def process_page_data(page):
+    data = {"dates": []}
+    total_sold_out = 0
+    total_available = 0
+    total_availability_prcnt = 0
 
-    lData = page["data"]
+    for event in page["json"]["events"]:
+        if event["isBookingActive"]:
+            total_available += 1
+            total_availability_prcnt += event["availability-percentage"]
+            date = event["event-date"].split("T")[0]
+            if date not in data["dates"]:
+                data["dates"].append(date)
+        elif event["isSoldout"]:
+            total_sold_out += 1
 
-    output += f"Dates: {lData["min_date"]} - {lData["max_date"]}\n"
-    output += f"Total Days: {len(lData["dates"])}\n"
+    # Safe Calculations
+    data["min_date"] = min(data["dates"]) if data["dates"] else "N/A"
+    data["max_date"] = max(data["dates"]) if data["dates"] else "N/A"
 
-    output += f"NON Sold-Out: {lData["total_available"]}/{lData["total_events"]}\nFree Seats: {lData["availability_prcnt"]}%\n"
+    total_events = total_sold_out + total_available
+    data["total_sold_out"] = total_sold_out
+    data["total_events"] = total_events
+    data["total_available"] = total_available
 
-    output += "--\n"
+    data["availability"] = 0
+    if total_available > 0:
+        data["availability"] = int(total_availability_prcnt / total_available)
 
-    output += lData["prices"]
+    # Process Prices
+    data["prices_html"] = []
+    for list in page["json"]["pricelists"]:
+        items = []
+        for price in list["discounts"]:
+            p_name = price["discount-name"]
+            p_val = price["price"]
+            items.append(f"<li>{p_name}: <strong>€{p_val}</strong></li>")
 
-    return output
+        data["prices_html"].append(f"<ul class='price-list'>{''.join(items)}</ul>")
+
+    page["data"] = data
+    return page
+
+
+def generate_html_row(page):
+    d = page["data"]
+
+    # Pre-calculate sort values (for data-sort attribute)
+    availability = d["availability"]
+
+    # Create HTML row
+    row = "<tr>"
+    row += f"<td class='col-name'>{page['name']}</td>"
+    row += f"<td data-sort='{d['min_date']}'>{d['min_date']}</td>"
+    row += f"<td data-sort='{d['max_date']}'>{d['max_date']}</td>"
+    row += f"<td data-sort='{d['total_available']}'>{d['total_available']}</td>"
+
+    # Availability Bar
+    bar = f"""
+    <div style='display:flex; align-items:center;'>
+        <div class='hotness-bar-bg'>
+            <div class='hotness-bar-fill' style='width:{availability}%'></div>
+        </div>
+        <span class='hotness-text'>{availability}%</span>
+    </div>
+    """
+    row += f"<td data-sort='{availability}'>{bar}</td>"
+
+    row += f"<td data-sort='{d['total_sold_out']}'>{d['total_sold_out']}/{d['total_events']}</td>"
+
+    # Prices TODO
+    row += f"<td>{d['prices_html'][0]}</td>"
+
+    # Link
+    row += f"<td class='col-link'><a href='{page['url']}' target='_blank'>Url</a></td>"
+    row += "</tr>"
+    return row
 
 
 # HTTP headers to mimic a real browser
@@ -120,57 +292,18 @@ for url in LINKS:
 
     page["name"] = page["json"]["plays"][0]["play-title"].strip()
 
+    page = process_page_data(page)
     PAGES.append(page)
 
 LINKS = [link for link in LINKS if link not in INVALID_LINKS]
 
+timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+html_content = HTML_TEMPLATE_START.replace("{generated_time}", timestamp)
+
 for page in PAGES:
-    data = {}
+    html_content += generate_html_row(page)
 
-    data["dates"] = []
+html_content += HTML_TEMPLATE_END
 
-    total_sold_out = 0
-    total_available = 0
-    total_availability_prcnt = 0
-    for event in page["json"]["events"]:
-        if event["isBookingActive"]:
-            total_available += 1
-            total_availability_prcnt += event["availability-percentage"]
-            date = event["event-date"].split("T")[0]
-            if date not in data["dates"]:
-                data["dates"].append(date)
-        elif event["isSoldout"]:
-            total_sold_out += 1
-
-    data["min_date"] = min(data["dates"])
-    data["max_date"] = max(data["dates"])
-
-    total_events = total_sold_out + total_available
-
-    data["total_available"] = total_available
-    data["total_events"] = total_events
-    data["availability_prcnt"] = int(total_availability_prcnt / total_available)
-
-    data["prices"] = ""
-    for price in page["json"]["pricelists"][0]["discounts"]:
-        data["prices"] += f"{price["discount-name"]}: {price["price"]}\n"
-
-    if len(page["json"]["pricelists"]) > 1:
-        data["prices"] += "WARNING, Pricing depends on day. Above prices are just one set of prices\n"
-
-    page["data"] = data
-
-with open(os.path.join(BASE_DIR, "output.txt"), "w", encoding="utf-8") as file5:
-    if SORT == 2:
-        file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["availability_prcnt"])]))
-    else:
-        file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["max_date"])]))
-
-with open(IN_DIR, "w", encoding="utf-8") as file21:
-    file21.write(f"Sort output by: {SORT}\n")
-    file21.write("(1 for Last Available Date, 2 for Percentage of Seats Taken)\n")
-    file21.write("Paste the theatre links under here, paste as many you want, seperated by new line\n")
-    file21.write("\n".join(LINKS))
-    if len(INVALID_LINKS) > 0:
-        file21.write("\nINVALID LINKS:\n")
-        file21.write("\n".join(INVALID_LINKS))
+with open(os.path.join(BASE_DIR, "report.html"), "w", encoding="utf-8") as f:
+    f.write(html_content)
