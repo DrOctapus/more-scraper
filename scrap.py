@@ -29,7 +29,7 @@ if not os.path.exists(IN_DIR):
     with open(IN_DIR, "w", encoding="utf-8") as file1:
         file1.write("Sort output by: 1\n")
         file1.write("(1 for Last Available Date, 2 for Percentage of Seats Taken)\n")
-        file1.write("Paste more.com links under, seperated by new line\n")
+        file1.write("Replace the theatre links under here, paste as many you want, seperated by new line\n")
         file1.write("https://www.more.com/gr-el/tickets/theater/THEATRE-NAME-1\n")
         file1.write("https://www.more.com/gr-el/tickets/theater/THEATRE-NAME-2")
     sys.exit()
@@ -40,7 +40,7 @@ with open(IN_DIR, "r", encoding="utf-8") as file2:
     LINKS = []
     INVALID_LINKS = []
     for line in file2:
-        if line.startswith("https://www.more.com/gr-el/tickets/theater/"):
+        if line.startswith("https://www.more.com/gr-el/tickets/"):
             LINKS.append(line.strip())
         elif line.startswith("https"):
             INVALID_LINKS.append(line.strip())
@@ -55,7 +55,7 @@ with open(IN_DIR, "r", encoding="utf-8") as file2:
 with open(IN_DIR, "w", encoding="utf-8") as file21:
     file21.write(f"Sort output by: {SORT}\n")
     file21.write("(1 for Last Available Date, 2 for Percentage of Seats Taken)\n")
-    file21.write("Paste more.com links under, seperated by new line\n")
+    file21.write("Replace the theatre links under here, paste as many you want, seperated by new line\n")
     file21.write("\n".join(LINKS))
     if len(INVALID_LINKS) > 0:
         file21.write("\nINVALID LINKS:\n")
@@ -83,7 +83,7 @@ def event_to_string(page):
     output += f"Dates: {lData["min_date"]} - {lData["max_date"]}\n"
     output += f"Total Days: {len(lData["dates"])}\n"
 
-    output += f"NON Sold-Out: {lData["total_available"]}/{lData["total_events"]}\nPercent of Seats Free: {lData["availability_prcnt"]}\n"
+    output += f"NON Sold-Out: {lData["total_available"]}/{lData["total_events"]}\nFree Seats: {lData["availability_prcnt"]}%\n"
 
     output += "--\n"
 
@@ -126,7 +126,9 @@ for url in LINKS:
             time.sleep(sleep_time)
 
         except Exception as e:
-            print(f"WARNING {page["engName"]}, Error fetching the URL: {e}")
+            with open(IN_DIR, "w", encoding="utf-8") as file41:
+                file41.write(page["url"])
+            continue
 
     page["name"] = page["json"]["plays"][0]["play-title"].strip()
 
@@ -173,4 +175,3 @@ with open(os.path.join(BASE_DIR, "output.txt"), "w", encoding="utf-8") as file5:
         file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["availability_prcnt"])]))
     else:
         file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["max_date"])]))
-
