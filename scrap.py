@@ -7,7 +7,7 @@ import re
 import sys
 
 # Directory of the current script
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     BASE_DIR = os.path.dirname(sys.executable)
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,9 +29,7 @@ if not os.path.exists(IN_DIR):
     with open(IN_DIR, "w", encoding="utf-8") as file1:
         file1.write("Sort output by: 1\n")
         file1.write("(1 for Last Available Date, 2 for Percentage of Seats Taken)\n")
-        file1.write("Replace the theatre links under here, paste as many you want, seperated by new line\n")
-        file1.write("https://www.more.com/gr-el/tickets/theater/THEATRE-NAME-1\n")
-        file1.write("https://www.more.com/gr-el/tickets/theater/THEATRE-NAME-2")
+        file1.write("Paste the theatre links under here, paste as many you want, seperated by new line")
     sys.exit()
 
 SORT = 0
@@ -51,15 +49,6 @@ with open(IN_DIR, "r", encoding="utf-8") as file2:
                     raise Exception
             except Exception:
                 SORT = 1
-
-with open(IN_DIR, "w", encoding="utf-8") as file21:
-    file21.write(f"Sort output by: {SORT}\n")
-    file21.write("(1 for Last Available Date, 2 for Percentage of Seats Taken)\n")
-    file21.write("Replace the theatre links under here, paste as many you want, seperated by new line\n")
-    file21.write("\n".join(LINKS))
-    if len(INVALID_LINKS) > 0:
-        file21.write("\nINVALID LINKS:\n")
-        file21.write("\n".join(INVALID_LINKS))
 
 
 def is_cache_fresh(filepath):
@@ -115,10 +104,10 @@ for url in LINKS:
             pattern = r"(?:bookingPanel\.init|scheduleDisplay\.initCalendar)\s*\((.*?)\);"
             match = re.search(pattern, response.text, re.DOTALL)
             if match is None:
-                print(f"WARNING {page["engName"]}, {page["url"]} didn't load the json")
+                raise Exception
             page["json"] = json.loads(match.group(1))
 
-            with open(os.path.join(JSON_DIR, json_path), "w", encoding="utf-8") as file4:
+            with open(json_path, "w", encoding="utf-8") as file4:
                 json.dump(page["json"], file4, ensure_ascii=False)
 
             # Avoid scraping detection
@@ -126,13 +115,14 @@ for url in LINKS:
             time.sleep(sleep_time)
 
         except Exception as e:
-            with open(IN_DIR, "w", encoding="utf-8") as file41:
-                file41.write(page["url"])
+            INVALID_LINKS.append(url)
             continue
 
     page["name"] = page["json"]["plays"][0]["play-title"].strip()
 
     PAGES.append(page)
+
+LINKS = [link for link in LINKS if link not in INVALID_LINKS]
 
 for page in PAGES:
     data = {}
@@ -175,3 +165,12 @@ with open(os.path.join(BASE_DIR, "output.txt"), "w", encoding="utf-8") as file5:
         file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["availability_prcnt"])]))
     else:
         file5.write("\n".join([event_to_string(page) for page in sorted(PAGES, key=lambda e: e["data"]["max_date"])]))
+
+with open(IN_DIR, "w", encoding="utf-8") as file21:
+    file21.write(f"Sort output by: {SORT}\n")
+    file21.write("(1 for Last Available Date, 2 for Percentage of Seats Taken)\n")
+    file21.write("Paste the theatre links under here, paste as many you want, seperated by new line\n")
+    file21.write("\n".join(LINKS))
+    if len(INVALID_LINKS) > 0:
+        file21.write("\nINVALID LINKS:\n")
+        file21.write("\n".join(INVALID_LINKS))
