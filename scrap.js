@@ -371,6 +371,7 @@ function generateHtmlRow(page) {
         // Network Fetch
         if (!page.json) {
             try {
+                console.log(`Loading ${url}`)
                 const html = await fetchUrl(url)
 
                 const regex = /(?:bookingPanel\.init|scheduleDisplay\.initCalendar)\s*\((.*?)\);/s
