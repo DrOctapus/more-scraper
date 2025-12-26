@@ -263,16 +263,7 @@ function processPageData(page) {
         data.availability = Math.round(totalAvailablePrcnt / totalAvailable)
     }
 
-    // data.pricesHTML = []
-
     const pricelists = page.json?.pricelists || []
-    // for (let list of pricelists) {
-    //     const prices = []
-    //     for (let price of list.discounts) {
-    //         prices.push(`<div>${price["discount-name"]}: <strong>${price["price"]}</strong></div>`)
-    //     }
-    //     data.pricesHTML.push(prices)
-    // }
 
     // Generate a unique ID for this cell to help the targeting
     const cellId = 'prices-' + Math.random().toString(36).slice(2, 9)
@@ -324,16 +315,18 @@ function generateHtmlRow(page) {
     const d = page.data
     return `
     <tr>
-        <td class='col-name'><a href='${page.url}' target='_blank'>${page.name || 'Unknown'}</a></td>
+        <td class='col-name' data-sort='${d.name}'><a href='${page.url}' target='_blank'>${page.name || 'Unknown'}</a></td>
         <td data-sort='${d.min_date}'>${d.min_date}</td>
         <td data-sort='${d.max_date}'>${d.max_date}</td>
         <td data-sort='${d.total_available}'>${d.total_available}</td>
-        <td data-sort='${d.availability}'><div style='display:flex; align-items:center;'>
-        <div class='availability-bar-bg'>
-            <div class='availability-bar-fill' style='width:${d.availability}%'></div>
-        </div>
-        <span class='availability-text'>${d.availability}%</span>
-    </div></td>
+        <td data-sort='${d.availability}'>
+            <div style='display:flex; align-items:center;'>
+                <div class='availability-bar-bg'>
+                    <div class='availability-bar-fill' style='width:${d.availability}%'></div>
+                </div>
+                <span class='availability-text'>${d.availability}%</span>
+            </div>
+        </td>
         <td data-sort='${d.total_sold_out}'>${d.total_sold_out}/${d.total_events}</td>
         <td>${d.pricesWidget}</td>
     </tr>`
