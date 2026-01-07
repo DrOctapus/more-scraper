@@ -20,13 +20,13 @@ const HTML_TEMPLATE_START = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Theater Scraper (Dark Mode)</title>
+    <title>Theatre Scraper (Dark Mode)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
         h1 { text-align: center; color: #ffffff; letter-spacing: 1px; }
         .timestamp { text-align: center; font-size: 0.9em; color: #aaaaaa; margin-bottom: 20px; }
         
-        table { width: 100%; border-collapse: separate; border-spacing: 0; background: #1e1e1e; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-radius: 8px; margin 10px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: #1e1e1e; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-radius: 8px; margin: 0px; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #333333; }
         
         th { background-color: #00796b; color: white;
@@ -123,7 +123,7 @@ const HTML_TEMPLATE_START = `<!DOCTYPE html>
                 <th class="sort" onclick="sortTable(3)">Total Days</th>
                 <th class="sort" onclick="sortTable(4)">Seat Availability</th>
                 <th class="sort" onclick="sortTable(5)">Sold Out</th>
-                <th ">Prices</th>
+                <th>Prices</th>
             </tr>
         </thead>
         <tbody>
@@ -179,8 +179,9 @@ const HTML_TEMPLATE_END = `
                     var xVal = x.getAttribute("data-sort") || x.innerHTML.toLowerCase();
                     var yVal = y.getAttribute("data-sort") || y.innerHTML.toLowerCase();
                     
-                    // Convert to number if possible for correct numeric sorting
-                    if (!isNaN(parseFloat(xVal)) && isFinite(xVal)) {
+                    // Convert to number ONLY for specific columns (Days, Availability, Sold Out)
+                    // Columns 0 (Name), 1 (Start), and 2 (End) should always be string/text sorts
+                    if (n > 2 && !isNaN(parseFloat(xVal)) && isFinite(xVal)) {
                         xVal = parseFloat(xVal);
                         yVal = parseFloat(yVal);
                     }
@@ -315,7 +316,7 @@ function generateHtmlRow(page) {
     const d = page.data
     return `
     <tr>
-        <td class='col-name' data-sort='${d.name}'><a href='${page.url}' target='_blank'>${page.name || 'Unknown'}</a></td>
+        <td class='col-name' data-sort='${page.name}'><a href='${page.url}' target='_blank'>${page.name || 'Unknown'}</a></td>
         <td data-sort='${d.min_date}'>${d.min_date}</td>
         <td data-sort='${d.max_date}'>${d.max_date}</td>
         <td data-sort='${d.total_available}'>${d.total_available}</td>
